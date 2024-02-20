@@ -17,49 +17,68 @@ def load_obj_each_frame(data_file):
     return frame_dict
 
 
-def alpha_beta_filter(observed_centers, alpha=0.1, beta=0.1):
+def alpha_beta_filter(observed_centers, alpha=0.1, beta=0.2):
     filtered_centers = []
-    prev_center = np.array(observed_centers[0])
+    prev_center = np.array(observed_centers[1])
+    
+    # Initialize the initial state of the filter based on the first observed center
+    initial_center = observed_centers[1]
+    
     for center in observed_centers:
         if center == [-1, -1]:  # If center is missing
-            filtered_center = prev_center
+            filtered_center = prev_center 
         else:
+            if initial_center == [-1, -1]:  # Handle initial state when the first center is missing
+                break
+                
             predicted_center = prev_center + alpha * (np.array(center) - prev_center)
             filtered_center = predicted_center + beta * (np.array(center) - predicted_center)
             prev_center = filtered_center
-        filtered_centers.append(filtered_center)
+        
+        # Ensure the filtered center is within the bounds of the image
+        filtered_center = np.clip(filtered_center, [0, 0], [700, 500])
+        filtered_centers.append(filtered_center.tolist())
+    #print(filtered_centers)
     return filtered_centers
-
-
+    
 def draw_target_object_center(video_file, obj_centers, smoothed_centers):
     count = 0
     cap = cv.VideoCapture(video_file)
     ok, image = cap.read()
     vidwrite = cv.VideoWriter("part_1_demo_with_filtered_circles.mp4", cv.VideoWriter_fourcc(*'MP4V'), 30, (700, 500))
-    smoothed_line = [(int(x), int(y)) for x, y in smoothed_centers if x != -1 and y != -1]
-    prev_smoothed = None
+    observed_history = []  # Store the history of observed object centers
     smoothed_track = []  # Collect smoothed track coordinates
+    
+    for center in smoothed_centers:
+        if center[0] != -1 and center[1] != -1:
+            smoothed_track.append((int(center[0]), int(center[1])))
     while ok:
         pos_x, pos_y = obj_centers[count]
         count += 1
         image = cv.resize(image, (700, 500))
-
-        # Draw observed track (red circles)
-        for i in range(1, count):
-            prev_x, prev_y = obj_centers[i-1]
-            curr_x, curr_y = obj_centers[i]
-            if prev_x != -1 and prev_y != -1 and curr_x != -1 and curr_y != -1:
-                cv.circle(image, (int(prev_x), int(prev_y)), 1, (0, 0, 255), 2)
-
-        # Draw smoothed track (blue line)
-        if count > 1:
-            for smoothed_point in smoothed_line:
-                if prev_smoothed is not None:
-                    cv.line(image, prev_smoothed, smoothed_point, (255, 0, 0), 1)
-                    smoothed_track.append(smoothed_point)  # Add to smoothed track
-                prev_smoothed = smoothed_point
         
-        cv.circle(image, (int(pos_x), int(pos_y)), 1, (0, 0, 255), 2)  # Red: current observed position
+        # Draw the blue expected path line
+        if smoothed_track:
+            for i in range(len(smoothed_track) - 1):
+                if(smoothed_track[i] > smoothed_track[i+1]):
+                    cv.line(image, smoothed_track[2], smoothed_track[-1], (255, 0, 0), 1, cv.LINE_AA, 0)
+        
+      
+        
+        # Draw smoothed object centers (red circles) only when the object is missing in the current frame
+        if count <= len(smoothed_centers):
+            smooth_x, smooth_y = smoothed_centers[count - 1]  # Use count - 1 as index since count starts from 1
+            #if pos_x == -1 or pos_y == -1:
+            if smooth_x != -1 and smooth_y != -1:
+                #cv.circle(image, (int(smooth_x), int(smooth_y)), 1, (0, 0, 255), 2)
+                #smoothed_track.append((int(smooth_x), int(smooth_y)))  # Append to smoothed track
+                observed_history.append((int(smooth_x), int(smooth_y)))
+        
+        # Draw observed object centers (red circles) for every frame
+        observed_history.append((int(pos_x), int(pos_y)))
+        for obs_x, obs_y in observed_history:
+            cv.circle(image, (obs_x, obs_y), 1, (0, 0, 255), 2)
+
         vidwrite.write(image)
         ok, image = cap.read()
     vidwrite.release()
@@ -67,6 +86,7 @@ def draw_target_object_center(video_file, obj_centers, smoothed_centers):
     # Write smoothed track coordinates to a JSON file
     with open('smoothed_track.json', 'w') as outfile:
         json.dump({'smoothed_track': smoothed_track}, outfile)
+
 
 frame_dict = load_obj_each_frame("object_to_track.json")
 video_file = "commonwealth.mp4"
@@ -128,7 +148,6 @@ def draw_objects_in_video(video_file, frame_dict):
         ok, image = cap.read()
 
     vidwrite.release()
-
 # Example usage:
 frame_dict = load_obj_each_frame("frame_dict.json")
 video_file = "commonwealth.mp4"
