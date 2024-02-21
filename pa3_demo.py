@@ -114,7 +114,6 @@ def draw_object(object_dict, image, color=(0, 255, 0), thickness=2, font=cv.FONT
     image = cv.putText(image, text, (text_x, text_y), font, font_scale, c_color, thickness)
 
     return image
-
 def draw_objects_in_video(video_file, frame_dict):
     ids = {}
     cap = cv.VideoCapture(video_file)
@@ -126,6 +125,9 @@ def draw_objects_in_video(video_file, frame_dict):
             break
         image = cv.resize(image, (700, 500))
         obj_list = frame_dict[str(i)]
+        
+        # Set to keep track of displayed IDs in the current frame
+        displayed_ids = set()
         
         for obj in obj_list:
             best_id = None
@@ -142,17 +144,23 @@ def draw_objects_in_video(video_file, frame_dict):
             else:
                 obj["id"] = str(best_id)
                 ids[best_id] = (obj['x_min'], obj['y_min'])
-                
-            image = draw_object(obj, image)
+            
+            # Display the object only if its ID hasn't been displayed in the current frame
+            if obj["id"] not in displayed_ids:
+                image = draw_object(obj, image)
+                displayed_ids.add(obj["id"])
 
         vidwrite.write(image)
 
     cap.release()
     vidwrite.release()
+
 # Example usage:
 frame_dict = load_obj_each_frame("frame_dict.json")
 video_file = "commonwealth.mp4"
 draw_objects_in_video(video_file, frame_dict)
+
+
 def add_unique_ids_to_objects(frame_dict):
     ids = {}
     for frame_key in frame_dict.keys():
@@ -182,5 +190,5 @@ with open("part_2_frame_dict.json", "r") as file:
 modified_frame_dict = add_unique_ids_to_objects(frame_dict)
 
 # Save the modified data file
-with open("part_2_frame_dict_modified.json", "w") as file:
+with open("part_2_frame_dict.json", "w") as file:
     json.dump(modified_frame_dict, file, indent=4)
