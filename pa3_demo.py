@@ -4,7 +4,7 @@ import cv2 as cv
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from collections import defaultdict
-
+import math
 
 
 #from google.colab.patches import cv2_imshow
@@ -116,37 +116,38 @@ def draw_object(object_dict, image, color=(0, 255, 0), thickness=2, font=cv.FONT
     return image
 
 def draw_objects_in_video(video_file, frame_dict):
-    count = 0
+    ids = {}
     cap = cv.VideoCapture(video_file)
-    ok, image = cap.read()
     vidwrite = cv.VideoWriter("part_2_demo.mp4", cv.VideoWriter_fourcc(*'MP4V'), 30, (700, 500))
-
-    object_ids = defaultdict(int)  # Dictionary to store object IDs
-    objects_with_ids = {}  # Dictionary to store objects with assigned IDs
-
-    while ok:
+    
+    for i in range(len(frame_dict)):
+        ok, image = cap.read()
+        if not ok:
+            break
         image = cv.resize(image, (700, 500))
-        obj_list = frame_dict[str(count)]
-
-        # Assign unique IDs to objects
-        for idx, obj in enumerate(obj_list):
-            # Add 'id' key to object dictionary
-            obj['id'] = idx
-            # Calculate object's unique ID based on its bounding box coordinates
-            obj_id = object_ids[(obj['x_min'], obj['y_min'], obj['width'], obj['height'])]
-            objects_with_ids[(obj['x_min'], obj['y_min'], obj['width'], obj['height'])] = obj_id
-            object_ids[(obj['x_min'], obj['y_min'], obj['width'], obj['height'])] += 1
-
-        # Draw bounding boxes with unique colors based on assigned IDs
+        obj_list = frame_dict[str(i)]
+        
         for obj in obj_list:
-            obj_id = objects_with_ids[(obj['x_min'], obj['y_min'], obj['width'], obj['height'])]
-            color = (0, 0, 255) if obj_id == 0 else (int(255 * obj_id / len(obj_list)), 0, 0)
-            image = draw_object(obj, image, color=color)
+            best_id = None
+            cur_dist_away = 30  # Threshold distance
+            for id, coordinates in ids.items():
+                dist_away = math.sqrt(((obj["x_min"] - coordinates[0]) ** 2) + ((obj["y_min"] - coordinates[1]) ** 2))
+                if dist_away < cur_dist_away:
+                    cur_dist_away = dist_away
+                    best_id = id
+            if best_id is None:
+                next_id = max(ids.keys()) + 1 if ids else 1
+                obj["id"] = str(next_id)
+                ids[next_id] = (obj['x_min'], obj['y_min'])
+            else:
+                obj["id"] = str(best_id)
+                ids[best_id] = (obj['x_min'], obj['y_min'])
+                
+            image = draw_object(obj, image)
 
         vidwrite.write(image)
-        count += 1
-        ok, image = cap.read()
 
+    cap.release()
     vidwrite.release()
 # Example usage:
 frame_dict = load_obj_each_frame("frame_dict.json")
