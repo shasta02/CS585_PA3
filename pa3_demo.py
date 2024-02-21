@@ -153,17 +153,25 @@ def draw_objects_in_video(video_file, frame_dict):
 frame_dict = load_obj_each_frame("frame_dict.json")
 video_file = "commonwealth.mp4"
 draw_objects_in_video(video_file, frame_dict)
-
-
 def add_unique_ids_to_objects(frame_dict):
-    object_ids = {}  # Dictionary to store object IDs
+    ids = {}
     for frame_key in frame_dict.keys():
         obj_list = frame_dict[frame_key]
         for obj in obj_list:
-            obj_tuple = (obj['x_min'], obj['y_min'], obj['width'], obj['height'])
-            if obj_tuple not in object_ids:
-                object_ids[obj_tuple] = len(object_ids)  # Assign a unique ID to each object
-            obj['id'] = object_ids[obj_tuple]  # Add the 'id' key to the object
+            best_id = None
+            cur_dist_away = 30  # Threshold distance
+            for id, coordinates in ids.items():
+                dist_away = math.sqrt(((obj["x_min"] - coordinates[0]) ** 2) + ((obj["y_min"] - coordinates[1]) ** 2))
+                if dist_away < cur_dist_away:
+                    cur_dist_away = dist_away
+                    best_id = id
+            if best_id is None:
+                next_id = max(ids.keys()) + 1 if ids else 1
+                obj["id"] = next_id
+                ids[next_id] = (obj['x_min'], obj['y_min'])
+            else:
+                obj["id"] = best_id
+                ids[best_id] = (obj['x_min'], obj['y_min'])
     return frame_dict
 
 # Load the original data file
