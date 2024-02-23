@@ -1,3 +1,7 @@
+#Shasta Narayanan, Sungjun Park
+#CS 585 Image and Video Computing
+#Homework 3
+
 # -*- coding: utf-8 -*-
 import json
 import cv2 as cv
